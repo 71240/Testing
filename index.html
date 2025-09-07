@@ -1,1 +1,353 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Grocery List</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      background: #f4f5f7; 
+      margin: 0; 
+      padding: 0; 
+      text-align: center; 
+      color: #333;
+    }
+    header { 
+      background: #6b8e72; 
+      color: white; 
+      padding: 1rem; 
+      font-size: 1.5rem; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+    }
+    header span { margin-left: 10px; }
+    .container { 
+      max-width: 500px; 
+      margin: 20px auto; 
+      background: white; 
+      padding: 20px; 
+      border-radius: 10px; 
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08); 
+    }
+    .hidden { display: none; }
+
+    .categories { margin: 10px 0; }
+    .categories button { 
+      margin: 5px; 
+      padding: 8px 12px; 
+      border: none; 
+      border-radius: 6px; 
+      cursor: pointer; 
+      background: #e0e0e0; 
+      color: #333; 
+      transition: background 0.2s; 
+    }
+    .categories button:hover { background: #d0d0d0; }
+    .categories button.active { background: #6b8e72; color: white; }
+
+    .search { margin: 10px 0; }
+    input, select { 
+      padding: 8px; 
+      margin: 5px; 
+      border: 1px solid #ccc; 
+      border-radius: 6px; 
+      outline: none;
+    }
+    input:focus, select:focus { border-color: #6b8e72; }
+
+    button { 
+      cursor: pointer; 
+      background: #6b8e72; 
+      color: white; 
+      border: none; 
+      border-radius: 6px; 
+      padding: 8px 14px; 
+      transition: background 0.2s; 
+    }
+    button:hover { background: #5c7a63; }
+
+    ul { list-style: none; padding: 0; margin-top: 15px; }
+    li { 
+      padding: 10px; 
+      margin: 5px 0; 
+      background: #f9f9f9; 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      border-radius: 6px; 
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    li.crossed { text-decoration: line-through; color: #888; }
+
+    .actions button { 
+      margin-left: 5px; 
+      padding: 6px 10px; 
+    }
+    .actions button.cross { 
+      background: #8da3b3; /* muted gray-blue */
+    }
+    .actions button.cross:hover { 
+      background: #7b90a1; 
+    }
+    .actions button.delete { 
+      background: #b98b8b; /* muted soft red */
+    }
+    .actions button.delete:hover { 
+      background: #a37777; 
+    }
+  </style>
+</head>
+<body>
+  <header>🛒 <span>Grocery List</span></header>
+
+  <div class="container" id="login-container">
+    <h2>Login</h2>
+    <input type="text" id="login-name" placeholder="Name"><br>
+    <input type="password" id="login-passcode" placeholder="Passcode (2–6 digits)"><br>
+    <button onclick="login()">Login</button>
+    <p>or</p>
+    <h2>Create Account</h2>
+    <input type="text" id="signup-name" placeholder="Name"><br>
+    <input type="password" id="signup-passcode" placeholder="Passcode (2–6 digits)"><br>
+    <button onclick="signup()">Create Account</button>
+  </div>
+
+  <div class="container hidden" id="app-container">
+    <div class="categories" id="categories"></div>
+    <div class="search">
+      <input type="text" id="search" placeholder="Search items...">
+    </div>
+    <input type="text" id="item-input" placeholder="New item">
+    <input type="text" id="amount-input" placeholder="Amount">
+    <input type="text" id="category-input" placeholder="Category">
+    <button onclick="addItem()">Add</button>
+    <ul id="list"></ul>
+  </div>
+
+  <script>
+    const SCRIPT_URL = "https://script.google.com/macros/s/AKfycby7FnZZurwtHyxi840bn8mPboY1rvJ2vXVseXoG2tgNnUhcTyQIj16VFnOOysP21eak/exec";
+    let currentUser = null;
+    let currentCategory = "All";
+    let allItems = [];
+
+    async function signup() {
+      const name = document.getElementById("signup-name").value.trim();
+      const passcode = document.getElementById("signup-passcode").value.trim();
+      if (!name || !/^[0-9]{2,6}$/.test(passcode)) {
+        alert("Enter a name and a 2–6 digit passcode."); return;
+      }
+      
+      try {
+        const res = await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ action: "signup", name, passcode })
+        });
+        const data = await res.json();
+        alert(data.message);
+        if (data.status === "success") {
+          document.getElementById("signup-name").value = "";
+          document.getElementById("signup-passcode").value = "";
+        }
+      } catch (error) {
+        console.error("Signup error:", error);
+        alert("Signup failed. Please try again.");
+      }
+    }
+
+    async function login() {
+      const name = document.getElementById("login-name").value.trim();
+      const passcode = document.getElementById("login-passcode").value.trim();
+      
+      if (!name || !passcode) {
+        alert("Please enter both name and passcode.");
+        return;
+      }
+
+      try {
+        const url = `${SCRIPT_URL}?action=login&name=${encodeURIComponent(name)}&passcode=${encodeURIComponent(passcode)}`;
+        console.log("Login URL:", url);
+        
+        const res = await fetch(url);
+        const data = await res.json();
+        console.log("Login response:", data);
+        
+        if (data.status === "success") {
+          currentUser = name;
+          document.getElementById("login-container").classList.add("hidden");
+          document.getElementById("app-container").classList.remove("hidden");
+          
+          // EVENT LISTENER MOVED HERE - after the container is visible
+          document.getElementById("search").addEventListener("input", renderList);
+          
+          loadItems();
+        } else {
+          alert("Login failed: " + (data.message || "Authorization failed"));
+        }
+      } catch (error) {
+        console.error("Login error:", error);
+        alert("Login failed. Please check your connection and try again.");
+      }
+    }
+
+    async function loadItems() {
+      try {
+        const url = `${SCRIPT_URL}?action=list&name=${encodeURIComponent(currentUser)}`;
+        const res = await fetch(url);
+        const data = await res.json();
+        
+        if (data.status === "success") {
+          allItems = data.items;
+          renderCategories();
+          renderList();
+        } else {
+          console.error("Failed to load items:", data.message);
+        }
+      } catch (error) {
+        console.error("Load items error:", error);
+      }
+    }
+
+    async function addItem() {
+      const name = document.getElementById("item-input").value.trim();
+      const amount = document.getElementById("amount-input").value.trim();
+      const category = document.getElementById("category-input").value.trim() || "Uncategorized";
+      
+      if (!name) return;
+
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ 
+            action: "add", 
+            user: currentUser, 
+            name, 
+            amount, 
+            category 
+          })
+        });
+        
+        document.getElementById("item-input").value = "";
+        document.getElementById("amount-input").value = "";
+        document.getElementById("category-input").value = "";
+        loadItems();
+      } catch (error) {
+        console.error("Add item error:", error);
+        alert("Failed to add item. Please try again.");
+      }
+    }
+
+    async function toggleItem(id) {
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ action: "toggle", id })
+        });
+        loadItems();
+      } catch (error) {
+        console.error("Toggle item error:", error);
+      }
+    }
+
+    async function deleteItem(id) {
+      try {
+        await fetch(SCRIPT_URL, {
+          method: "POST",
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: new URLSearchParams({ action: "delete", id, user: currentUser })
+        });
+        loadItems();
+      } catch (error) {
+        console.error("Delete item error:", error);
+      }
+    }
+
+    function renderCategories() {
+      const categories = ["All", ...new Set(allItems.map(i => i.category))];
+      const container = document.getElementById("categories");
+      container.innerHTML = "";
+      categories.forEach(cat => {
+        const btn = document.createElement("button");
+        btn.textContent = cat;
+        if (cat === currentCategory) btn.classList.add("active");
+        btn.onclick = () => { currentCategory = cat; renderList(); };
+        container.appendChild(btn);
+      });
+    }
+
+    function renderList() {
+      const list = document.getElementById("list");
+      const search = document.getElementById("search").value.toLowerCase();
+      list.innerHTML = "";
+      
+      allItems
+        .filter(i => 
+          (currentCategory === "All" || i.category === currentCategory) &&
+          (!i.hiddenBy || !i.hiddenBy.split(",").includes(currentUser)) &&
+          i.name.toLowerCase().includes(search)
+        )
+        .forEach(item => {
+          const li = document.createElement("li");
+          if (item.crossed) li.classList.add("crossed");
+          li.innerHTML = `
+            <span>${item.name} ${item.amount ? "(" + item.amount + ")" : ""}</span>
+            <div class="actions">
+              <button class="cross" onclick="toggleItem('${item.id}')">${item.crossed ? 'Uncross' : 'Cross'}</button>
+              <button class="delete" onclick="deleteItem('${item.id}')">Delete</button>
+            </div>
+          `;
+          list.appendChild(li);
+        });
+    }
+
+    // Debug function - call this from the browser console
+    window.debugLogin = function() {
+        const testName = "testuser";
+        const testPasscode = "1234";
+        
+        const url = `${SCRIPT_URL}?action=login&name=${encodeURIComponent(testName)}&passcode=${encodeURIComponent(testPasscode)}`;
+        console.log('Testing login with URL:', url);
+        
+        fetch(url)
+            .then(response => response.json())
+            .then(data => {
+                console.log('Login test response:', data);
+                alert('Test response: ' + JSON.stringify(data));
+            })
+            .catch(error => {
+                console.error('Test error:', error);
+                alert('Error: ' + error.message);
+            });
+    };
+
+    // Test the script URL connection
+    window.testConnection = function() {
+        console.log('Testing connection to:', SCRIPT_URL);
+        fetch(SCRIPT_URL)
+            .then(response => response.text())
+            .then(text => {
+                console.log('Connection test response:', text.substring(0, 100) + '...');
+                alert('Connection successful!');
+            })
+            .catch(error => {
+                console.error('Connection failed:', error);
+                alert('Connection failed: ' + error.message);
+            });
+    };
+
+    console.log('Script loaded successfully. Use debugLogin() or testConnection() in console to test.');
+  </script>
+</body>
+</html>
